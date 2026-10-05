@@ -8,25 +8,27 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:8b")
 
 
-def generate_sql(question, schema):
+def generate_sql(question, graph_context):
 
     prompt = f"""
-Convert the user's question into ONE PostgreSQL SELECT query.
+You are a PostgreSQL Text-to-SQL system. Convert the user's question into exactly ONE read-only PostgreSQL SELECT statement.
 
-DATABASE SCHEMA:
-{schema}
-
-QUESTION:
+USER QUESTION:
 {question}
+
+RELEVANT DATABASE GRAPH CONTEXT:
+{graph_context}
 
 RULES:
 - Return ONLY the SQL query.
 - Do not explain.
 - Do not use markdown.
-- Use only tables and columns in the schema.
+- Use only tables and columns in the provided context.
+- Respect foreign-key relationships and use their columns for JOIN conditions.
 - Use PostgreSQL syntax.
 - Exclude cancelled orders when calculating spending.
 - Return exactly one SELECT statement.
+- Never modify database data.
 
 SQL:
 """
@@ -48,10 +50,13 @@ SQL:
 
     response.raise_for_status()
 
-    result = response.json()
+    try:
+        result = response.json()
+    except ValueError as exc:
+        raise RuntimeError("Ollama returned an invalid response.") from exc
 
-    print("\nDEBUG - Ollama response:")
-    print(result)
+    if not isinstance(result, dict):
+        raise RuntimeError("Ollama returned an invalid response.")
 
     sql = result.get("response", "").strip()
 
