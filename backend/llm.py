@@ -1,4 +1,7 @@
+
+import time
 import os
+from click import prompt
 import requests
 from dotenv import load_dotenv
 
@@ -26,12 +29,14 @@ RULES:
 - Use only tables and columns in the provided context.
 - Respect foreign-key relationships and use their columns for JOIN conditions.
 - Use PostgreSQL syntax.
-- Exclude cancelled orders when calculating spending.
 - Return exactly one SELECT statement.
 - Never modify database data.
 
 SQL:
 """
+    print(f"[PERF] Prompt characters: {len(prompt)}")
+    print(f"[PERF] Graph context characters: {len(graph_context)}")
+    start_time = time.perf_counter()
 
     response = requests.post(
         f"{OLLAMA_URL}/api/generate",
@@ -42,11 +47,11 @@ SQL:
             "think": False,
             "options": {
                 "temperature": 0,
-                "num_predict": 300
+                "num_predict": 64
             }
         },
         timeout=300
-    )
+)
 
     response.raise_for_status()
 
@@ -60,9 +65,10 @@ SQL:
 
     sql = result.get("response", "").strip()
 
+    llm_time = time.perf_counter() - start_time
+    print(f"[PERF] Ollama generation: {llm_time:.2f} seconds")
+
     if not sql:
-        raise RuntimeError(
-            "Qwen returned an empty response."
-        )
+        raise RuntimeError("Qwen returned an empty response.")
 
     return sql
